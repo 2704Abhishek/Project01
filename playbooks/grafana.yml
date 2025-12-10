@@ -1,0 +1,54 @@
+#playbooks/grafana.yml
+
+- name: Install and Configure Grafana on Ubuntu
+  hosts: all
+  become: yes
+
+  tasks:
+
+    - name: Install dependencies for repository setup
+      apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Add Grafana GPG key properly
+      shell: |
+        wget -q -O - https://packages.grafana.com/gpg.key | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
+
+    - name: Add Grafana repository safely
+      copy:
+        dest: /etc/apt/sources.list.d/grafana.list
+        content: |
+          deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main
+
+    - name: Update apt cache after adding repo
+       apt:
+        update_cache: yes
+
+    - name: Install Grafana
+      apt:
+        name: grafana
+        state: present
+
+    - name: Enable Grafana service
+      systemd:
+        name: grafana-server
+        enabled: yes
+
+    - name: Start Grafana service
+      systemd:
+        name: grafana-server
+        state: started
+
+    - name: Allow port 3000 in firewall
+      shell: |
+        ufw allow 3000/tcp
+      ignore_errors: yes
