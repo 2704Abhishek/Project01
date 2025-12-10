@@ -12,6 +12,10 @@
 # Terraform's internal working directory
 .terraform/
 
+.terraform/
+**/.terraform/
+
+
 # Crash log files
 crash.log
 # *.tfvars.json (Ignore if you use JSON for variables with secrets)
