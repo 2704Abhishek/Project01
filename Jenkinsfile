@@ -19,9 +19,9 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo "Deploying Web App..."
-                sh '''
-                mkdir -p /tmp/webapp
-                cp -r * /tmp/webapp/
+                bat '''
+                mkdir webapp
+                xcopy * webapp /E /I /Y
                 '''
             }
         }
@@ -36,3 +36,4 @@ pipeline {
         }
     }
 }
+
