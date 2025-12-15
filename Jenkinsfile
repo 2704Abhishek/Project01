@@ -16,16 +16,23 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
-            steps {
-                echo "Deploying Web App..."
-                bat '''
-                mkdir webapp
-                xcopy * webapp /E /I /Y
-                '''
-            }
-        }
+       stage('Deploy') {
+    steps {
+        echo "Deploying Web App..."
+        bat '''
+        if not exist deploy mkdir deploy
+
+        for /D %%G in (*) do (
+            if /I not "%%G"=="deploy" xcopy "%%G" "deploy\\%%G" /E /I /Y
+        )
+
+        for %%F in (*) do (
+            if not "%%F"=="deploy" xcopy "%%F" "deploy\\" /Y
+        )
+        '''
     }
+}
+
 
     post {
         success {
