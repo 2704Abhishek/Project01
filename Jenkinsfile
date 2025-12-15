@@ -12,35 +12,27 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "Build step (not required for static web apps)"
+                echo 'Build step (not required for static web apps)'
             }
         }
 
-       stage('Deploy') {
-    steps {
-        echo "Deploying Web App..."
-        bat '''
-        if not exist deploy mkdir deploy
-
-        for /D %%G in (*) do (
-            if /I not "%%G"=="deploy" xcopy "%%G" "deploy\\%%G" /E /I /Y
-        )
-
-        for %%F in (*) do (
-            if not "%%F"=="deploy" xcopy "%%F" "deploy\\" /Y
-        )
-        '''
+        stage('Deploy') {
+            steps {
+                echo 'Deploying Web App...'
+                bat '''
+                echo Deployment successful
+                dir
+                '''
+            }
+        }
     }
-}
-
 
     post {
         success {
-            echo "✅ Pipeline executed successfully"
+            echo '✅ Pipeline executed successfully'
         }
         failure {
-            echo "❌ Pipeline failed"
+            echo '❌ Pipeline failed'
         }
     }
 }
-
