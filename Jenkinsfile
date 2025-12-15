@@ -20,7 +20,7 @@ pipeline {
             steps {
                 echo 'Deploying Web App...'
                 bat '''
-                echo Deployment successful
+                echo Deployment successful on Windows
                 dir
                 '''
             }
