@@ -30,7 +30,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo 'Build step (not required for static web apps)'
+                echo 'Build step (not required for static web apps.)'
             }
         }
 
