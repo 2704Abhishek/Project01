@@ -1,7 +1,25 @@
 pipeline {
     agent any
 
+    stages{
+        steps("terraform init") {
+            sh 'terraform init'
+        }
+    }
+
     stages {
+        steps("terraform plan") {
+            sh 'terraform plan'
+        }
+    }
+
+    stages {
+        steps("terraform apply -auto-approve") {
+            sh 'terraform apply -auto-approve'
+        }
+    }
+
+    
 
         stage('Checkout Code') {
             steps {
