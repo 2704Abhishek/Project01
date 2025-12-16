@@ -12,35 +12,41 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                bat 'terraform init'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat '''
+                    set AWS_DEFAULT_REGION=us-east-1
+                    terraform init
+                    '''
+                }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                bat 'terraform plan'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat '''
+                    terraform plan
+                    '''
+                }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                bat 'terraform apply -auto-approve'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                echo 'Build step (not required for static web apps.)'
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                echo 'Deploying Web App...'
-                bat '''
-                echo Deployment successful on Windows
-                dir
-                '''
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat '''
+                    terraform apply -auto-approve
+                    '''
+                }
             }
         }
     }
@@ -54,5 +60,4 @@ pipeline {
         }
     }
 }
-
-// webhook auto-build final test
+// End of Jenkinsfile
