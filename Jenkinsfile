@@ -1,30 +1,30 @@
 pipeline {
     agent any
 
-    stages{
-        steps("terraform init") {
-            sh 'terraform init'
-        }
-    }
-
     stages {
-        steps("terraform plan") {
-            sh 'terraform plan'
-        }
-    }
-
-    stages {
-        steps("terraform apply -auto-approve") {
-            sh 'terraform apply -auto-approve'
-        }
-    }
-
-    
 
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/2704Abhishek/Project01.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                bat 'terraform init'
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                bat 'terraform plan'
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                bat 'terraform apply -auto-approve'
             }
         }
 
