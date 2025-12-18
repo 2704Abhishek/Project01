@@ -8,7 +8,6 @@ pipeline {
     }
 
     stages {
-
         stage('Terraform Init') {
             steps {
                 withCredentials([
@@ -34,10 +33,8 @@ pipeline {
 
         stage('Approve Apply') {
             steps {
-                input {
-                    message "Do you want to apply this plan?"
-                    ok "Apply"
-                }
+                // FIXED: Changed curly braces to parentheses
+                input(message: "Do you want to apply this plan?", ok: "Apply")
             }
         }
 
@@ -50,15 +47,16 @@ pipeline {
                     bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
 
                     script {
+                        // Capture stdout from batch
                         env.INSTANCE_IP = bat(
                             script: 'terraform output -raw instance_public_ip',
                             returnStdout: true
-                        ).trim()
+                        ).trim().split('\n').last() // Added split/last to handle potential command echo in output
 
                         env.INSTANCE_ID = bat(
                             script: 'terraform output -raw instance_id',
                             returnStdout: true
-                        ).trim()
+                        ).trim().split('\n').last()
                     }
 
                     echo "Instance IP: ${env.INSTANCE_IP}"
@@ -82,10 +80,8 @@ pipeline {
 
         stage('Approve Ansible') {
             steps {
-                input {
-                    message "Run Ansible configuration?"
-                    ok "Run"
-                }
+                // FIXED: Changed curly braces to parentheses
+                input(message: "Run Ansible configuration?", ok: "Run")
             }
         }
 
@@ -100,10 +96,8 @@ pipeline {
 
         stage('Approve Destroy') {
             steps {
-                input {
-                    message "Destroy infrastructure?"
-                    ok "Destroy"
-                }
+                // FIXED: Changed curly braces to parentheses
+                input(message: "Destroy infrastructure?", ok: "Destroy")
             }
         }
 
