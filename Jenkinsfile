@@ -33,9 +33,11 @@ pipeline {
         }
 
         stage('Approve Apply') {
-            input {
-                message "Do you want to apply this plan?"
-                ok "Apply"
+            steps {
+                input {
+                    message "Do you want to apply this plan?"
+                    ok "Apply"
+                }
             }
         }
 
@@ -79,9 +81,11 @@ pipeline {
         }
 
         stage('Approve Ansible') {
-            input {
-                message "Run Ansible configuration?"
-                ok "Run"
+            steps {
+                input {
+                    message "Run Ansible configuration?"
+                    ok "Run"
+                }
             }
         }
 
@@ -95,9 +99,11 @@ pipeline {
         }
 
         stage('Approve Destroy') {
-            input {
-                message "Destroy infrastructure?"
-                ok "Destroy"
+            steps {
+                input {
+                    message "Destroy infrastructure?"
+                    ok "Destroy"
+                }
             }
         }
 
