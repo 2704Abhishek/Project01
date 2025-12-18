@@ -5,82 +5,61 @@ pipeline {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_ARGS = '-no-color'
         AWS_DEFAULT_REGION = 'us-east-2'
+        // FIX: Inject credentials globally so Terraform and AWS CLI see them automatically
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
     }
 
     stages {
         stage('Terraform Init') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat 'terraform init'
-                    bat "type %BRANCH_NAME%.tfvars"
-                }
+                // No need for withCredentials here anymore
+                bat 'terraform init'
+                // Use "if exist" to prevent failure if file is missing
+                bat 'if exist %BRANCH_NAME%.tfvars type %BRANCH_NAME%.tfvars'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "terraform plan -var-file=%BRANCH_NAME%.tfvars"
-                }
+                bat "terraform plan -var-file=%BRANCH_NAME%.tfvars"
             }
         }
 
         stage('Approve Apply') {
             steps {
-                // FIXED: Changed curly braces to parentheses
                 input(message: "Do you want to apply this plan?", ok: "Apply")
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
 
-                    script {
-                        // Capture stdout from batch
-                        env.INSTANCE_IP = bat(
-                            script: 'terraform output -raw instance_public_ip',
-                            returnStdout: true
-                        ).trim().split('\n').last() // Added split/last to handle potential command echo in output
+                script {
+                    // Optimized output capture for Windows
+                    def ipOut = bat(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
+                    env.INSTANCE_IP = ipOut.split('\r?\n').last()
 
-                        env.INSTANCE_ID = bat(
-                            script: 'terraform output -raw instance_id',
-                            returnStdout: true
-                        ).trim().split('\n').last()
-                    }
-
-                    echo "Instance IP: ${env.INSTANCE_IP}"
-                    echo "Instance ID: ${env.INSTANCE_ID}"
-
-                    writeFile file: 'dynamic_inventory.ini', text: env.INSTANCE_IP
+                    def idOut = bat(script: 'terraform output -raw instance_id', returnStdout: true).trim()
+                    env.INSTANCE_ID = idOut.split('\r?\n').last()
                 }
+
+                echo "Instance IP: ${env.INSTANCE_IP}"
+                echo "Instance ID: ${env.INSTANCE_ID}"
+                writeFile file: 'dynamic_inventory.ini', text: env.INSTANCE_IP
             }
         }
 
         stage('Wait for Instance Health') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
-                }
+                // AWS CLI will now automatically find the env variables
+                bat "aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
             }
         }
 
         stage('Approve Ansible') {
             steps {
-                // FIXED: Changed curly braces to parentheses
                 input(message: "Run Ansible configuration?", ok: "Run")
             }
         }
@@ -96,19 +75,13 @@ pipeline {
 
         stage('Approve Destroy') {
             steps {
-                // FIXED: Changed curly braces to parentheses
                 input(message: "Destroy infrastructure?", ok: "Destroy")
             }
         }
 
         stage('Terraform Destroy') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
-                }
+                bat "terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
             }
         }
     }
@@ -122,7 +95,7 @@ pipeline {
             echo 'Pipeline completed successfully ✅'
         }
         failure {
-            echo 'Pipeline failed ❌ — manual cleanup may be required'
+            echo 'Pipeline failed ❌'
         }
     }
 }
