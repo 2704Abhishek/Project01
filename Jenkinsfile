@@ -5,24 +5,22 @@ pipeline {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_ARGS = '-no-color'
         AWS_DEFAULT_REGION = 'us-east-2'
-        // FIX: Inject credentials globally so Terraform and AWS CLI see them automatically
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        // Using credentials() helper is the most secure way for Windows
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
     }
 
     stages {
         stage('Terraform Init') {
             steps {
-                // No need for withCredentials here anymore
-                bat 'terraform init'
-                // Use "if exist" to prevent failure if file is missing
-                bat 'if exist %BRANCH_NAME%.tfvars type %BRANCH_NAME%.tfvars'
+                // '@' suppresses the command output to prevent shell mangling of characters
+                bat '@echo off & terraform init'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                bat "terraform plan -var-file=%BRANCH_NAME%.tfvars"
+                bat "@echo off & terraform plan -var-file=%BRANCH_NAME%.tfvars"
             }
         }
 
@@ -34,15 +32,12 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                bat "@echo off & terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
 
                 script {
-                    // Optimized output capture for Windows
-                    def ipOut = bat(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
-                    env.INSTANCE_IP = ipOut.split('\r?\n').last()
-
-                    def idOut = bat(script: 'terraform output -raw instance_id', returnStdout: true).trim()
-                    env.INSTANCE_ID = idOut.split('\r?\n').last()
+                    // Using powershell can be more reliable for capturing raw strings on Windows
+                    env.INSTANCE_IP = powershell(returnStdout: true, script: 'terraform output -raw instance_public_ip').trim()
+                    env.INSTANCE_ID = powershell(returnStdout: true, script: 'terraform output -raw instance_id').trim()
                 }
 
                 echo "Instance IP: ${env.INSTANCE_IP}"
@@ -53,8 +48,7 @@ pipeline {
 
         stage('Wait for Instance Health') {
             steps {
-                // AWS CLI will now automatically find the env variables
-                bat "aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
+                bat "@echo off & aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
             }
         }
 
@@ -66,6 +60,7 @@ pipeline {
 
         stage('Ansible Configuration') {
             steps {
+                // Ensure the Ansible plugin is installed in Jenkins
                 ansiblePlaybook(
                     playbook: 'playbooks/grafana.yml',
                     inventory: 'dynamic_inventory.ini'
@@ -81,21 +76,14 @@ pipeline {
 
         stage('Terraform Destroy') {
             steps {
-                bat "terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                bat "@echo off & terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
             }
         }
     }
 
     post {
         always {
-            echo 'Cleaning up workspace'
             bat 'if exist dynamic_inventory.ini del dynamic_inventory.ini'
-        }
-        success {
-            echo 'Pipeline completed successfully ✅'
-        }
-        failure {
-            echo 'Pipeline failed ❌'
         }
     }
 }
