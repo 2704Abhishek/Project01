@@ -5,62 +5,92 @@ pipeline {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_ARGS = '-no-color'
         AWS_DEFAULT_REGION = 'us-east-2'
-        // Using credentials() helper is the most secure way for Windows
-        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
     }
 
     stages {
+
         stage('Terraform Init') {
             steps {
-                // '@' suppresses the command output to prevent shell mangling of characters
-                bat '@echo off & terraform init'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat 'terraform init'
+                    bat "type %BRANCH_NAME%.tfvars"
+                }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                bat "@echo off & terraform plan -var-file=%BRANCH_NAME%.tfvars"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat "terraform plan -var-file=%BRANCH_NAME%.tfvars"
+                }
             }
         }
 
         stage('Approve Apply') {
             steps {
-                input(message: "Do you want to apply this plan?", ok: "Apply")
+                input {
+                    message "Do you want to apply this plan?"
+                    ok "Apply"
+                }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                bat "@echo off & terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
 
-                script {
-                    // Using powershell can be more reliable for capturing raw strings on Windows
-                    env.INSTANCE_IP = powershell(returnStdout: true, script: 'terraform output -raw instance_public_ip').trim()
-                    env.INSTANCE_ID = powershell(returnStdout: true, script: 'terraform output -raw instance_id').trim()
+                    script {
+                        env.INSTANCE_IP = bat(
+                            script: 'terraform output -raw instance_public_ip',
+                            returnStdout: true
+                        ).trim()
+
+                        env.INSTANCE_ID = bat(
+                            script: 'terraform output -raw instance_id',
+                            returnStdout: true
+                        ).trim()
+                    }
+
+                    echo "Instance IP: ${env.INSTANCE_IP}"
+                    echo "Instance ID: ${env.INSTANCE_ID}"
+
+                    writeFile file: 'dynamic_inventory.ini', text: env.INSTANCE_IP
                 }
-
-                echo "Instance IP: ${env.INSTANCE_IP}"
-                echo "Instance ID: ${env.INSTANCE_ID}"
-                writeFile file: 'dynamic_inventory.ini', text: env.INSTANCE_IP
             }
         }
 
         stage('Wait for Instance Health') {
             steps {
-                bat "@echo off & aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat "aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
+                }
             }
         }
 
         stage('Approve Ansible') {
             steps {
-                input(message: "Run Ansible configuration?", ok: "Run")
+                input {
+                    message "Run Ansible configuration?"
+                    ok "Run"
+                }
             }
         }
 
         stage('Ansible Configuration') {
             steps {
-                // Ensure the Ansible plugin is installed in Jenkins
                 ansiblePlaybook(
                     playbook: 'playbooks/grafana.yml',
                     inventory: 'dynamic_inventory.ini'
@@ -70,20 +100,35 @@ pipeline {
 
         stage('Approve Destroy') {
             steps {
-                input(message: "Destroy infrastructure?", ok: "Destroy")
+                input {
+                    message "Destroy infrastructure?"
+                    ok "Destroy"
+                }
             }
         }
 
         stage('Terraform Destroy') {
             steps {
-                bat "@echo off & terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    bat "terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+                }
             }
         }
     }
 
     post {
         always {
+            echo 'Cleaning up workspace'
             bat 'if exist dynamic_inventory.ini del dynamic_inventory.ini'
+        }
+        success {
+            echo 'Pipeline completed successfully ✅'
+        }
+        failure {
+            echo 'Pipeline failed ❌ — manual cleanup may be required'
         }
     }
 }
