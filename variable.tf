@@ -42,13 +42,13 @@ variable "key_name" {
 variable "public_key_path" {
   description = "Path to the SSH public key file"
   type        = string
-  default     = "C:/Users/Abhishek Yadav/.ssh/id_rsa.pub"
+  default     = "C:/Users/Abhishek Yadav/.ssh/terraform_key.pub"
 }
 
 
 variable "private_key_path" {
   description = "Path to the SSH private key file"
   type        = string
-  default     = "C:/Users/Abhishek Yadav/.ssh/id_rsa"
+  default     = "C:/Users/Abhishek Yadav/.ssh/terraform_key"
 }
 

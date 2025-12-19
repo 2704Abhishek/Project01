@@ -3,8 +3,11 @@ pipeline {
 
     environment {
         TF_IN_AUTOMATION = 'true'
-        TF_CLI_ARGS = '-no-color'
+        TF_CLI_ARGS      = '-no-color'
         AWS_DEFAULT_REGION = 'us-east-2'
+
+        // SSH credential (EXISTS in Jenkins)
+        SSH_CRED_ID = 'aws-deployer-ssh-key'
     }
 
     stages {
@@ -87,7 +90,8 @@ pipeline {
             steps {
                 ansiblePlaybook(
                     playbook: 'playbooks/grafana.yml',
-                    inventory: 'dynamic_inventory.ini'
+                    inventory: 'dynamic_inventory.ini',
+                    credentialsId: SSH_CRED_ID
                 )
             }
         }
