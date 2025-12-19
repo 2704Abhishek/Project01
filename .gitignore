@@ -54,3 +54,7 @@ venv/
 
 # Github.pem
 github.pem
+
+#public and private ssh key
+terraform_key.pub
+terraform_key
