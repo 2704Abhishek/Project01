@@ -16,9 +16,8 @@ resource "random_id" "random_node_Id" {
 # -----------------------------
 # SSH KEY FOR TERRAFORM
 # -----------------------------
-resource "aws_key_pair" "terraform_key" {
-  key_name   = "terraform_key"
-  public_key = file("C:/Users/Abhishek Yadav/.ssh/terraform_key.pub")
+data "aws_key_pair" "terraform_key" {
+  key_name = "terraform_key_v2"
 }
 
 # -----------------------------
@@ -31,7 +30,7 @@ resource "aws_instance" "web_server" {
   subnet_id              = aws_subnet.public_subnet[0].id
   vpc_security_group_ids = [aws_security_group.project_sg_1.id]
 
-  key_name = aws_key_pair.terraform_key.key_name
+  key_name = data.aws_key_pair.terraform_key.key_name
 
   user_data = templatefile("${path.module}/main-userdata.tpl", {
     new_hostname = "web-server-${random_id.random_node_Id[count.index].dec}"
@@ -40,6 +39,7 @@ resource "aws_instance" "web_server" {
   tags = {
     Name = "WebServerInstance"
   }
+
 
   # -----------------------------
   # SAVE ONLY LATEST PUBLIC IP
