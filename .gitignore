@@ -51,3 +51,8 @@ Thumbs.db
 # Virtual environment files (if used for Python/Ansible dependencies)
 .venv/
 venv/
+# github.pem
+github.pem
+# shh_keys/
+terraform_key
+terraform_key.pub
