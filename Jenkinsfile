@@ -3,86 +3,95 @@ pipeline {
 
     environment {
         TF_IN_AUTOMATION = 'true'
-        TF_CLI_ARGS      = '-no-color'
-        AWS_DEFAULT_REGION = 'us-east-2'
-
-        // SSH credential (EXISTS in Jenkins)
+        TF_CLI_ARGS = '-no-color'
+        AWS_REGION = 'us-east-1'
         SSH_CRED_ID = 'aws-deployer-ssh-key'
     }
 
     stages {
 
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Terraform Init') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred1'
+                ]]) {
                     bat 'terraform init'
-                    bat "type %BRANCH_NAME%.tfvars"
                 }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred1'
+                ]]) {
                     bat "terraform plan -var-file=%BRANCH_NAME%.tfvars"
                 }
             }
         }
 
         stage('Approve Apply') {
-            steps {
-                input message: 'Do you want to apply this plan?', ok: 'Apply'
+            input {
+                message "Apply Terraform changes for %BRANCH_NAME%?"
+                ok "Apply"
             }
         }
 
-        stage('Terraform Apply') {
+        stage('Terraform Apply & Capture Outputs') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
-
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred1'
+                ]]) {
                     script {
+                        bat "terraform apply -auto-approve -var-file=%BRANCH_NAME%.tfvars"
+
                         env.INSTANCE_IP = bat(
-                            script: 'terraform output -raw instance_public_ip',
+                            script: "terraform output -raw instance_public_ip",
                             returnStdout: true
                         ).trim()
 
                         env.INSTANCE_ID = bat(
-                            script: 'terraform output -raw instance_id',
+                            script: "terraform output -raw instance_id",
                             returnStdout: true
                         ).trim()
+
+                        echo "EC2 IP: ${env.INSTANCE_IP}"
+                        echo "EC2 ID: ${env.INSTANCE_ID}"
+
+                        bat "echo ${env.INSTANCE_IP} > dynamic_inventory.ini"
                     }
-
-                    echo "Instance IP: ${env.INSTANCE_IP}"
-                    echo "Instance ID: ${env.INSTANCE_ID}"
-
-                    writeFile file: 'dynamic_inventory.ini', text: env.INSTANCE_IP
                 }
             }
         }
 
-        stage('Wait for Instance Health') {
+        stage('Wait for EC2 Health') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    bat "aws ec2 wait instance-status-ok --instance-ids %INSTANCE_ID% --region %AWS_DEFAULT_REGION%"
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred1'
+                ]]) {
+                    bat """
+                      aws ec2 wait instance-status-ok ^
+                      --instance-ids ${env.INSTANCE_ID} ^
+                      --region ${AWS_REGION}
+                    """
                 }
             }
         }
 
         stage('Approve Ansible') {
-            steps {
-                input message: 'Run Ansible configuration?', ok: 'Run'
+            input {
+                message "Run Ansible on %BRANCH_NAME%?"
+                ok "Run Ansible"
             }
         }
 
@@ -97,17 +106,18 @@ pipeline {
         }
 
         stage('Approve Destroy') {
-            steps {
-                input message: 'Destroy infrastructure?', ok: 'Destroy'
+            input {
+                message "Destroy infra for %BRANCH_NAME%?"
+                ok "Destroy"
             }
         }
 
         stage('Terraform Destroy') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred1'
+                ]]) {
                     bat "terraform destroy -auto-approve -var-file=%BRANCH_NAME%.tfvars"
                 }
             }
@@ -116,14 +126,13 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up workspace'
-            bat 'if exist dynamic_inventory.ini del dynamic_inventory.ini'
+            bat 'del dynamic_inventory.ini 2>NUL'
         }
         success {
-            echo 'Pipeline completed successfully ✅'
+            echo '✅ Pipeline completed successfully'
         }
         failure {
-            echo 'Pipeline failed ❌ — manual cleanup may be required'
+            echo '❌ Pipeline failed'
         }
     }
 }
